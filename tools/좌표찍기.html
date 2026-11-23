@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><title>S.O.S 좌표 찍기</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}
+body{font-family:'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif;margin:0;background:#f4f5f7;color:#212121;line-height:1.5}
+header{background:#212121;color:#fff;padding:14px 20px}
+header h1{margin:0;font-size:18px} header p{margin:4px 0 0;font-size:13px;color:#c8c8cc}
+main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding:16px;max-width:1500px;margin:0 auto}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+.card{background:#fff;border:1px solid #e0e2e6;border-radius:12px;padding:14px}
+h2{font-size:14px;margin:0 0 8px}
+label{font-size:12.5px;font-weight:700;display:block;margin:8px 0 4px}
+input[type=text],input[type=number],textarea,select{width:100%;padding:9px 10px;border:1.5px solid #d6d9de;border-radius:8px;font-size:14px;font-family:inherit}
+textarea{min-height:120px;font-family:Consolas,monospace;font-size:12.5px}
+button{padding:9px 14px;border:none;border-radius:8px;background:#2F5FDB;color:#fff;font-weight:800;font-size:13.5px;cursor:pointer;font-family:inherit}
+button.s{background:#eef0f3;color:#212121}
+.row{display:flex;gap:8px;align-items:flex-end} .row>*{flex:1}
+#stage{position:relative;width:100%;background:#0F1930;overflow:hidden;border-radius:10px;cursor:crosshair;user-select:none}
+#stage img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+#stage.natural img{object-fit:contain}
+.mk{position:absolute;transform:translate(-50%,-50%);background:#F01428;color:#fff;font-size:12px;font-weight:900;padding:3px 7px;border-radius:8px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:grab;white-space:nowrap}
+.mk.cur{background:#2F5FDB}
+#list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip{padding:5px 10px;border-radius:16px;border:1.5px solid #d6d9de;font-size:12.5px;font-weight:700;cursor:pointer;background:#fff}
+.chip.done{border-color:#1E9E5A;color:#1E9E5A} .chip.cur{background:#2F5FDB;border-color:#2F5FDB;color:#fff}
+.hint{font-size:12px;color:#6E7686;margin:6px 0 0}
+#now{font-size:15px;font-weight:900;color:#2F5FDB;margin:6px 0}
+</style></head><body>
+<header><h1>📍 S.O.S 좌표 찍기</h1><p>사진 위에서 동 위치를 차례로 클릭하면 site-config.js 에 붙여넣을 좌표가 만들어집니다. 인터넷 없이 이 파일만 열어도 됩니다.</p></header>
+<main>
+  <div class="card">
+    <div class="row">
+      <div><label>어느 그림의 좌표인가요</label>
+        <select id="mode" onchange="setMode()">
+          <option value="map">① 전경사진 (map.jpg) → buildings</option>
+          <option value="plan">② 동별보기 배치도 (siteplan.png) → siteplan</option>
+        </select></div>
+      <div><label>그림 파일 선택</label><input type="file" id="file" accept="image/*" onchange="loadFile(this)"></div>
+    </div>
+    <div id="now">그림을 고른 뒤, 오른쪽에서 동 목록을 만드세요</div>
+    <div id="stage" style="aspect-ratio:1000/572"><img id="img" alt=""></div>
+    <p class="hint">클릭 = 현재 동 위치 지정(다음 동으로 자동 이동) · 빨간 표식을 끌어서 미세 조정 · 오른쪽 목록에서 동을 눌러 다시 찍기.<br>전경사진은 앱과 똑같이 가로 1000 : 세로 572 비율로 가운데가 잘려 보입니다. 배치도는 그림 원래 비율로 보입니다.</p>
+  </div>
+  <div>
+    <div class="card">
+      <h2>1. 동 목록</h2>
+      <div class="row"><div><label>시작 번호</label><input type="number" id="from" value="101"></div><div><label>끝 번호</label><input type="number" id="to" value="106"></div><div><label>뒤에 붙는 말</label><input type="text" id="suf" value="동"></div></div>
+      <div class="row" style="margin-top:8px"><button onclick="genNames()">번호로 만들기</button></div>
+      <label>또는 직접 입력 (쉼표·줄바꿈으로 구분)</label>
+      <textarea id="names" style="min-height:60px" placeholder="101동, 102동, 근린생활시설, 주민공동시설"></textarea>
+      <div class="row" style="margin-top:8px"><button class="s" onclick="useNames()">이 목록으로 시작</button></div>
+      <div id="list"></div>
+    </div>
+    <div class="card" style="margin-top:12px">
+      <h2>2. 결과 — site-config.js 에 붙여넣기</h2>
+      <textarea id="out" readonly></textarea>
+      <div class="row" style="margin-top:8px"><button onclick="copyOut()">복사</button><button class="s" onclick="resetAll()">전부 지우기</button></div>
+      <p class="hint" id="outHint"></p>
+    </div>
+  </div>
+</main>
+<script>
+let names=[], pos={}, cur=0, drag=null;
+const stage=document.getElementById('stage'), img=document.getElementById('img');
+function setMode(){
+  const plan=document.getElementById('mode').value==='plan';
+  stage.classList.toggle('natural', plan);
+  stage.style.aspectRatio = plan && img.naturalWidth ? (img.naturalWidth+' / '+img.naturalHeight) : '1000 / 572';
+  render();
+}
+function loadFile(inp){ const f=inp.files[0]; if(!f) return; img.onload=setMode; img.src=URL.createObjectURL(f); }
+function genNames(){
+  const a=+document.getElementById('from').value, b=+document.getElementById('to').value, s=document.getElementById('suf').value;
+  if(!(b>=a) || b-a>200){ alert('번호 범위를 확인하세요'); return; }
+  document.getElementById('names').value = Array.from({length:b-a+1},(_,i)=>(a+i)+s).join(', '); useNames();
+}
+function useNames(){
+  names=document.getElementById('names').value.split(/[,\n]/).map(x=>x.trim()).filter(Boolean);
+  names=[...new Set(names)]; cur=0; Object.keys(pos).forEach(k=>{ if(!names.includes(k)) delete pos[k]; }); render();
+}
+function pct(e){ const r=stage.getBoundingClientRect(); return { x:Math.min(100,Math.max(0,(e.clientX-r.left)/r.width*100)), y:Math.min(100,Math.max(0,(e.clientY-r.top)/r.height*100)) }; }
+stage.addEventListener('click', e=>{
+  if(drag || !names.length || e.target.classList.contains('mk')) return;
+  const p=pct(e); pos[names[cur]]={ x:+p.x.toFixed(1), y:+p.y.toFixed(1) };
+  const next=names.findIndex((n,i)=>i>cur && !pos[n]); cur = next>=0 ? next : Math.min(cur+1, names.length-1); render();
+});
+stage.addEventListener('pointerdown', e=>{ if(e.target.classList.contains('mk')){ drag=e.target.dataset.n; e.target.setPointerCapture(e.pointerId); } });
+stage.addEventListener('pointermove', e=>{ if(!drag) return; const p=pct(e); pos[drag]={ x:+p.x.toFixed(1), y:+p.y.toFixed(1) }; render(true); });
+stage.addEventListener('pointerup', ()=>{ setTimeout(()=>{ drag=null; },0); });
+function render(light){
+  stage.querySelectorAll('.mk').forEach(m=>m.remove());
+  names.forEach((n,i)=>{ const p=pos[n]; if(!p) return; const m=document.createElement('div'); m.className='mk'+(i===cur?' cur':''); m.dataset.n=n; m.textContent=n; m.style.left=p.x+'%'; m.style.top=p.y+'%'; stage.appendChild(m); });
+  if(!light){
+    document.getElementById('list').innerHTML = names.map((n,i)=>`<span class="chip${pos[n]?' done':''}${i===cur?' cur':''}" onclick="cur=${i};render()">${n}${pos[n]?' ✓':''}</span>`).join('');
+  }
+  const left=names.filter(n=>!pos[n]).length;
+  document.getElementById('now').textContent = !names.length ? '오른쪽에서 동 목록을 만드세요' : (left ? `지금 찍을 곳: ${names[cur]}  (남은 ${left}개)` : '모두 찍었습니다 — 오른쪽 결과를 복사하세요');
+  const plan=document.getElementById('mode').value==='plan';
+  const done=names.filter(n=>pos[n]);
+  const body = plan
+    ? 'siteplan: {\n' + done.map(n=>`    '${n}':{ x:${pos[n].x}, y:${pos[n].y} },`).join('\n') + '\n  },'
+    : 'buildings: [\n' + done.map(n=>`    { name:'${n}', x:${pos[n].x}, y:${pos[n].y} },`).join('\n') + '\n  ],';
+  document.getElementById('out').value = '  ' + body;
+  document.getElementById('outHint').textContent = plan ? 'site-config.js 의  siteplan: {},  줄을 이 내용으로 바꾸세요.' : 'site-config.js 의  buildings: [ … ],  부분을 이 내용으로 바꾸세요.';
+}
+function copyOut(){ const t=document.getElementById('out'); t.select(); (navigator.clipboard ? navigator.clipboard.writeText(t.value) : Promise.reject()).then(()=>alert('복사되었습니다')).catch(()=>{ document.execCommand('copy'); alert('복사되었습니다'); }); }
+function resetAll(){ if(confirm('찍은 좌표를 모두 지울까요?')){ pos={}; cur=0; render(); } }
+render();
+</script></body></html>
