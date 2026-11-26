@@ -718,6 +718,14 @@
   .building-hotspot.zoned .hl.done::after{content:" ✓";}
   .building-hotspot.zoned.active{background:transparent;box-shadow:none;}
   .building-hotspot.zoned.active .hl{outline:3px solid #fff;outline-offset:1px;transform:scale(1.12);}
+  /* 번호표 숨김 모드 — 선택한 동은 테두리로, 점검한 동은 작은 ✓ 로 표시 */
+  .building-hotspot.zoned.nolabel{border-radius:16px;align-items:flex-start;justify-content:flex-end;padding:4px;}
+  .building-hotspot.zoned.nolabel .hl{display:none;}
+  .building-hotspot.zoned.nolabel .hl.done{display:block;font-size:0;padding:0;width:22px;height:22px;border-radius:50%;background:var(--green);}
+  .building-hotspot.zoned.nolabel .hl.done::after{content:"✓";font-size:13px;line-height:22px;display:block;text-align:center;color:#fff;}
+  .building-hotspot.zoned.nolabel.active{background:rgba(47,95,219,.14);box-shadow:0 0 0 3px var(--blue-600);}
+  .building-hotspot.zoned.nolabel.active .hl{outline:none;transform:none;}
+  @media (hover:hover){ .building-hotspot.zoned.nolabel:hover{background:rgba(47,95,219,.08);} }
   .zone-legend{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px 12px;border-top:1px solid var(--line);}
   .zone-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:20px;font-size:11.5px;font-weight:800;
     border:1.5px solid var(--line);background:#fff;color:var(--ink-900);cursor:pointer;font-family:inherit;}
@@ -1402,7 +1410,7 @@
         </div>
 
         <button class="submit-btn" style="background:var(--ink-400);" onclick="lockAdmin()">🔒 관리 화면 잠그기</button>
-        <p class="admin-build" style="text-align:center;font-size:10.5px;color:var(--ink-400);font-weight:600;margin-top:14px;">build 2026-11-23 03:00 UTC · 배포판</p>
+        <p class="admin-build" style="text-align:center;font-size:10.5px;color:var(--ink-400);font-weight:600;margin-top:14px;">build 2026-11-26 03:00 UTC · 배포판</p>
       </div>
     </div>
   </div>
@@ -1639,7 +1647,7 @@ function buildingPos(name){ return BUILDINGS.find(b=>b.name===name) || {x:50,y:5
 const SITEPLAN_POS = (function(){
   const p = SITE.siteplan && Object.keys(SITE.siteplan).length ? SITE.siteplan : {};
   const out = {};
-  BUILDINGS.forEach(b=>{ out[b.name] = p[b.name] || { x:b.x, y:b.y }; });   // 배치도 좌표가 없으면 전경사진 좌표를 씀
+  BUILDINGS.forEach(b=>{ out[b.name] = p[b.name] || { x:b.x, y:b.y }; });   // 배치도 좌표가 없으면 전경사진 좌표를 씀. w,h(%)를 주면 누르는 영역 크기
   return out;
 })();
 /* 구역·담당 기본값 (책임구역제 운영안 2026.11). 관리 탭에서 고치면 Firebase settings/zones 에 저장됩니다. */
@@ -2826,6 +2834,9 @@ function renderBuildingMapHotspots(){
     el.type = 'button';
     el.className = 'building-hotspot zoned' + (state.buildingFilter===name ? ' active' : '');
     el.style.left = pos.x+'%'; el.style.top = pos.y+'%';
+    // 동 이름표가 그림에 이미 있는 배치도: 건물 크기만큼 누르는 영역을 잡고 앱 번호표는 숨깁니다
+    if(pos.w && pos.h){ el.style.width = pos.w+'%'; el.style.height = pos.h+'%'; }
+    if(SITE.siteplanLabels === false) el.classList.add('nolabel');
     if(z) el.style.setProperty('--zc', zoneColor(z.no));
     el.title = name + (z ? ` · ${z.no}구역` : '');
     const done = z && zoneInspectedToday(z.no).length;

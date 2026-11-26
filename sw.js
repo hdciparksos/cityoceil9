@@ -1,5 +1,5 @@
 // 빌드마다 캐시 이름이 바뀌므로, 재배포 시 예전 캐시가 자동으로 폐기됩니다.
-const BUILD = '202611230300';
+const BUILD = '202611260300';
 // 같은 주소에 여러 현장을 올려도 캐시가 섞이지 않게 설치 위치(scope)를 이름에 넣습니다.
 const CACHE_NAME = 'sos-safety-' + BUILD + '-' + (self.registration ? self.registration.scope : '');
 const APP_SHELL = [
